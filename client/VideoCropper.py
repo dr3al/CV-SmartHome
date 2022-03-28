@@ -128,8 +128,7 @@ class Cropper:
             image = self.prettify(image, f"People Number {i}", x0, x1, y0, y1, (255, 128, 0))
             # image = cv2.rectangle(image, (x0, y0), (x1, y1), (0, 255, 0), 3)
 
-        cv2.imshow(f"{cap} face", image)
-        cv2.waitKey(0)
+        return image
 
     def frameArray(self, photoPath: str = "", cap: str = ""):
         for i, face in enumerate(self.faces):
@@ -144,7 +143,15 @@ class Cropper:
 
 
 if __name__ == "__main__":
-    img = cv2.imread("/Users/bizy1/Desktop/test_model/photo_2022-03-27_21-54-37.jpg")
-    fw = Cropper(img)
-    fw()
-    fw.show_rectangles()
+    cap = cv2.VideoCapture(0)
+
+    while cap.isOpened():
+        ret, frame = cap.read()
+
+        fw = Cropper(frame)
+        fw()
+        image = fw.show_rectangles()
+
+        cv2.imshow('frame', image)
+        if cv2.waitKey(1) == ord('q'):
+            break

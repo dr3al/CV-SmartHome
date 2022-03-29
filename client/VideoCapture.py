@@ -1,9 +1,27 @@
 import cv2
 import face_recognition
+import dlib
+from threading import Thread, main_thread
+from time import sleep
 
-video_capture = cv2.VideoCapture(0)
 
-face_locations = []
+class Worker(Thread):
+    def __init__(self):
+        super().__init__()
+
+        self.name = "Worker-1"
+        self.frame = None
+        self.face_locations = []
+
+    def run(self):
+        while main_thread().is_alive():
+            if self.frame is not None:
+                rgb_frame = frame[:, :, :1]
+
+                self.face_locations = face_recognition.face_locations(rgb_frame)
+                self.frame = None
+
+            sleep(.00001)
 
 
 def prettify(img, label, x1, x2, y1, y2, color):
@@ -19,18 +37,29 @@ def prettify(img, label, x1, x2, y1, y2, color):
     return img
 
 
-while True:
+video_capture = cv2.VideoCapture("/Users/bizy1/PycharmProjects/CV-SmartHome/client/video.mp4")
+worker = Worker()
+worker.start()
+crop_image = 0
+
+while video_capture.isOpened():
     ret, frame = video_capture.read()
-    image = frame
+    frame = cv2.resize(frame, (640, 1214))
 
-    rgb_frame = frame[:, :, ::-1]
+    view_image = frame
+    process_image = frame[500:800]
 
-    face_locations = face_recognition.face_locations(rgb_frame)
+    worker.frame = process_image
 
-    for (i), (top, right, bottom, left) in enumerate(face_locations):
-        image = prettify(image, f"Person Number {i}", left, top, right, bottom, (255, 128, 0))
+    for (i), (top, right, bottom, left) in enumerate(worker.face_locations):
+        cropped_image = frame[top:bottom, left:right]
+        cv2.imwrite(f"cropped_image_{crop_image}.jpg", cropped_image)
+        crop_image += 1
 
-    cv2.imshow('Video', image)
+    for (i), (top, right, bottom, left) in enumerate(worker.face_locations):
+        view_image = prettify(view_image, f"Person Number {i}", left, right, top, bottom, (255, 128, 0))
+
+    cv2.imshow('Video', view_image)
     if cv2.waitKey(1) == ord('q'):
         break
 

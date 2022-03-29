@@ -1,38 +1,212 @@
+import json
 import typing as t
-
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response, abort, request_started
+from config import CV_Config
+from errors import CV_Errors as CVE
+from database import Users, Photos, engine
+from sqlmodel import Session, select
+from time import time
+from re import sub, match
+from datetime import datetime
 
 
 class CV_Server(Flask):
-    def __init__(self, import_name: str, static_url_path: t.Optional[str] = __name__,
-                 static_folder: t.Optional[str] = "static", static_host: t.Optional[str] = None,
-                 host_matching: bool = False, subdomain_matching: bool = False,
-                 template_folder: t.Optional[str] = "templates", instance_path: t.Optional[str] = None,
-                 instance_relative_config: bool = False, root_path: t.Optional[str] = None):
-        super().__init__(import_name, static_url_path, static_folder, static_host, host_matching, subdomain_matching,
-                         template_folder, instance_path, instance_relative_config, root_path)
+    def __init__(self, import_name):
+        super().__init__(import_name)
+        self.secret_key = "!TOP_SECRET_KEY"
+
+        self.settings = CV_Config()
+        self.routes()
+
+    @staticmethod
+    def success(response: dict, code=200, execution_time=None):
+        response = {
+                "status": "ok",
+                "response": response
+             }
+
+        if execution_time is not None:
+            response["execution_time"] = round(abs(time() - execution_time), 3)
+
+        return Response(response=json.dumps(response),
+                        status=code, content_type='application/json', direct_passthrough=True)
+
+    @staticmethod
+    def failed(error_message, error_code, arguments, code=400):
+        return Response(response=json.dumps(
+            {
+                "status": "bad",
+                "error": {
+                    "error_message": error_message,
+                    "error_code": error_code
+                },
+                "arguments": arguments
+            }
+        ), status=code, content_type='application/json', direct_passthrough=True)
+
+    @staticmethod
+    def data_processing():
+        data = request.args.to_dict() or request.json or request.data or request.form or {}
+
+        return data
+
+    def before_something(self, sender, **extra):
+        data = self.data_processing()
+
+        if self.settings.secret_token:
+            token_header = request.headers.get("authorization", None)
+            if token_header != f"Bearer {self.settings.secret_token}":
+                return abort(self.failed(CVE.NOT_AUTHORIZED.value,
+                                         CVE.NOT_AUTHORIZED_CODE.value,
+                                         [x for x in data.keys()]))
 
     def routes(self):
+        request_started.connect(self.before_something, self)
+
+        @self.errorhandler(404)
+        def not_found(e):
+            data = self.data_processing()
+
+            return self.failed(CVE.NOT_FOUND.value, CVE.NOT_FOUND_CODE.value,
+                               [x for x in data.keys()], CVE.NOT_FOUND_CODE.value)
+
+        @self.errorhandler(405)
+        def not_found(e):
+            data = self.data_processing()
+
+            return self.failed(CVE.METHOD_NOT_ALLOWED.value, CVE.METHOD_NOT_ALLOWED_CODE.value,
+                               [x for x in data.keys()], CVE.METHOD_NOT_ALLOWED_CODE.value)
+
         @self.route("/", methods=["GET", "POST"])
         def index():
-            return "Hello, SchoolX 2022!", 200
+            return self.success({"message": "Hello, School X 2022!"})
 
         @self.route("/users/recognize", methods=["POST"])
         def users_recognize():
-            pass
+            return self.success({})
 
         @self.route("/users/add", methods=["POST"])
         def users_add():
-            pass
+            start_t = time()
+
+            data = self.data_processing()
+
+            if "first_name" not in data or "last_name" not in data or "username" not in data:
+                return self.failed(CVE.NOT_ENOUGH_ARGS.value,
+                                   CVE.NOT_ENOUGH_ARGS_CODE.value,
+                                   [x for x in data.values()],
+                                   CVE.NOT_ENOUGH_ARGS_CODE.value)
+
+            first_name = sub(r"[^а-яА-Яa-zA-Z]", "", data["first_name"])
+            last_name = sub(r"[^а-яА-Яa-zA-Z]", "", data["last_name"])
+            username = sub(r"[^a-zA-Z]", "", data["username"])
+
+            session = Session(engine)
+            find_user = select(Users).where(Users.username == username)
+            find_user = session.exec(find_user).one_or_none()
+
+            if find_user:
+                session.close()
+
+                return self.failed(
+                    CVE.ALREADY_EXISTS.value,
+                    CVE.ALREADY_EXISTS_CODE.value,
+                    [x for x in data.values()],
+                    CVE.ALREADY_EXISTS_CODE.value
+                )
+
+            new_user = Users(username=username, first_name=first_name, last_name=last_name)
+            session.add(new_user)
+            session.commit()
+            session.refresh(new_user)
+            session.close()
+
+            return self.success(
+                {
+                    "user": {
+                        "id": new_user.id,
+                        "username": new_user.username,
+                        "first_name": new_user.first_name,
+                        "last_name": new_user.last_name
+                    }
+                }, execution_time=start_t
+            )
 
         @self.route("/users/remove", methods=["POST"])
         def users_remove():
-            pass
+            return self.success({})
 
         @self.route("/users/access/enable", methods=["POST"])
         def users_access_enable():
-            pass
+            return self.success({})
 
         @self.route("/users/access/disable", methods=["POST"])
         def users_access_disable():
-            pass
+            return self.success({})
+
+        @self.route("/users/settings/update", methods=["POST"])
+        def users_settings_update():
+            return self.success({})
+
+        @self.route("/users/settings/upload", methods=["POST"])
+        def users_settings_upload():
+            data = self.data_processing()
+
+            if "username" not in data:
+                return self.failed(
+                    CVE.NOT_ENOUGH_ARGS.value,
+                    CVE.NOT_ENOUGH_ARGS_CODE.value,
+                    [],
+                    CVE.NOT_ENOUGH_ARGS_CODE.value
+                )
+
+            session = Session(engine)
+            find_user = select(Users).where(Users.username == data["username"])
+            find_user = session.exec(find_user).one_or_none()
+
+            print(find_user)
+
+            if not find_user:
+                session.close()
+
+                return self.failed(
+                    CVE.NOT_FOUND.value,
+                    CVE.NOT_FOUND_CODE.value,
+                    [x for x in data.values()],
+                    CVE.NOT_FOUND_CODE.value
+                )
+
+            if not request.files:
+                return self.failed(
+                    CVE.NO_FILES_SEND.value,
+                    CVE.NO_FILES_SEND_CODE.value,
+                    [x for x in data.keys()],
+                    CVE.NO_FILES_SEND_CODE.value
+                )
+
+            allowed_files = [x for x in request.files if match(r""".*\.jpg""", request.files[x].filename)]
+
+            if not allowed_files:
+                return self.failed(
+                    CVE.NO_FILES_SEND.value,
+                    CVE.NO_FILES_SEND_CODE.value,
+                    [x for x in data.keys()],
+                    CVE.NO_FILES_SEND_CODE.value
+                )
+
+            for filename in allowed_files:
+                file = request.files[filename]
+                new_filename = self.settings.uploads_path + "{:%Y-%m-%d-%H-%M-%S}.jpg".format(datetime.now())
+                file.save(new_filename)
+
+                # TODO: Проверка соотношения сторон
+                #  Выкидыш - в ошибку и return self.failed()
+                #  Если все окей - обратываем моделью и кидаем в faiss и по таблицам бд
+
+            return self.success({
+                "files": allowed_files
+            })
+
+    def run(self, *args, **kwargs) -> None:
+
+        super().run(*args, **kwargs, threaded=True)

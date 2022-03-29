@@ -18,7 +18,7 @@ from config import CV_Config
 
 
 class FaceResnet:
-    def __init__(self):
+    def __init__(self, weights_name: str):
         self.target_shape = (150, 150)
 
         self.siamese_model = None
@@ -26,6 +26,7 @@ class FaceResnet:
         self.siamese_network = None
 
         self.cv_config = CV_Config()
+        self.weights_name = weights_name
 
     def build_model(self):
         base_cnn = resnet.ResNet50(

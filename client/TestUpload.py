@@ -17,7 +17,7 @@ class Worker(Thread):
         self.frame = None
         self.face_locations = []
         self.persons = []
-        self.facenet = cv2.CascadeClassifier("/Users/bizy1/Downloads/CV-SmartHome/client/haarcascade_frontalface_alt.xml")
+        self.facenet = cv2.CascadeClassifier("haarcascade_frontalface_alt.xml")
 
     def run(self):
         while main_thread().is_alive():

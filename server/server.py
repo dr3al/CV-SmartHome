@@ -49,7 +49,7 @@ class CV_Server(Flask):
 
     @staticmethod
     def data_processing():
-        data = request.args.to_dict() or request.json or request.data or request.form or {}
+        data = request.args.to_dict() or request.data or request.form or {}
 
         return data
 

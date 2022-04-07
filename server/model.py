@@ -86,6 +86,16 @@ class CV_Model(FaceResnet):
         dists, indexes = self.face_storage.search(face_embed, self.neighbours)
         cur_id, cur_dist = indexes[0].tolist(), dists[0].tolist()
 
+        s_cur_id, s_cur_dist = [], []
+
+        for id_, dist in zip(cur_id, cur_dist):
+            if dist >= self.settings.threshold:
+                continue
+
+            else:
+                s_cur_id.append(id_)
+                s_cur_dist.append(dist)
+
         defining = {}
 
         for id_, distance in zip(cur_id, cur_dist):
@@ -98,10 +108,10 @@ class CV_Model(FaceResnet):
             defining[id_]["count"] += 1
 
         winner = sorted([(k, v) for k, v in defining.items()], key=lambda x: x[1]["count"], reverse=True)[0]
-        winner_id, winner_distance = winner[0], winner[1]["distance"]
 
-        if winner_distance < self.settings.threshold:
+        try:
+            winner_id, winner_distance = winner[0], winner[1]["distance"]
             return int(winner_id), round(float(winner_distance), 5)
 
-        else:
+        except:
             return None, None

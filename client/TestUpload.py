@@ -1,3 +1,5 @@
+from enum import Enum
+
 import cv2
 from threading import Thread, main_thread
 from time import sleep
@@ -8,72 +10,99 @@ from os import path
 
 settings = CV_Config()
 server = "http://89.248.193.55:7778/users/recognize"
-cascade_model_path = path.join(path.dirname(__file__), "haarcascade_frontalface_alt.xml")
+cascade_model_path = path.join(path.dirname(__file__), "dlib_models", "haarcascade_frontalface_alt.xml")
+
+
+class WorkerType(Enum):
+    LANDMARK_WORKER = "landmark_worker"
+    CONNECT_WORKER = "connect_worker"
 
 
 class Worker(Thread):
-    def __init__(self):
+    def __init__(self, w_type: WorkerType, root=None):
         super().__init__()
 
-        self.name = "Worker-1"
+        self.name = "Worker"
         self.frame = None
         self.face_locations = []
         self.persons = []
         self.facenet = cv2.CascadeClassifier(cascade_model_path)
+        self.w_type = w_type
 
-    def run(self):
+        self.root = root
+
+    def landmark_worker(self):
         while main_thread().is_alive():
             if self.frame is not None:
-                # rgb_frame = frame[:, :, :1]
-
-                # self.face_locations = face_recognition.face_locations(rgb_frame)
-
-                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                gray = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
                 self.face_locations = self.facenet.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
 
                 for (i), (x, y, w, h) in enumerate(self.face_locations):
-                    cropped_image = frame[x:x+w, y:y+h]
+                    cropped_image = self.frame[y:y + h, x:x + w]
                     cv2.imwrite(f"cropped_image_{i}.jpg", cropped_image)
-                    response = post(server, files={"photo1.jpg": open(f"cropped_image_{i}.jpg", "rb").read()},
-                                    headers={"authorization": f"Bearer {settings.secret_token}"})
-
-                    print(response.json())
-
-                    if response.json()["status"] == "bad":
-                        continue
-
-                    if response.json()["response"]["identity"] is None:
-                        pass
-                        # print(f"Person Number {i}")
-
-                    else:
-                        first_name = response.json()["response"]["identity"]["first_name"]
-                        last_name = response.json()["response"]["identity"]["last_name"]
-                        distance = response.json()["response"]["identity"]["distance"]
-
-                        # print(f"{first_name} {last_name}: {distance}")
-
-                        if self.persons:
-                            try:
-                                self.persons[i] = [first_name, last_name, distance]
-
-                            except:
-                                self.persons.append([first_name, last_name, distance])
-
-                            else:
-                                pass
-
-                        else:
-                            self.persons.append([first_name, last_name, distance])
-
-                        if i + 1 == len(self.face_locations):
-                            self.persons = self.persons[:i + 1]
-
-                # print("Persons: ", self.persons)
 
                 self.frame = None
 
             sleep(.00001)
+
+    def connect_worker(self):
+        while main_thread().is_alive():
+            face_loc = self.root.face_locations if self.root else self.face_locations
+            persons = self.root.persons if self.root else self.persons
+
+            for (i), (x, y, w, h) in enumerate(face_loc):
+                try:
+                    with open(f"cropped_image_{i}.jpg", "rb") as f:
+                        file = f.read()
+
+                    if not file:
+                        raise AssertionError
+
+                except:
+                    continue
+
+                response = post(server, files={"photo1.jpg": file}, headers={"authorization": f"Bearer {settings.secret_token}"})
+
+                print(response.json())
+
+                if response.json()["status"] == "bad":
+                    continue
+
+                if response.json()["response"]["identity"] is None:
+                    pass
+
+                else:
+                    first_name = response.json()["response"]["identity"]["first_name"]
+                    last_name = response.json()["response"]["identity"]["last_name"]
+                    distance = response.json()["response"]["identity"]["distance"]
+
+                    if persons:
+                        try:
+                            persons[i] = [first_name, last_name, distance]
+
+                        except:
+                            persons.append([first_name, last_name, distance])
+
+                        else:
+                            pass
+
+                    else:
+                        persons.append([first_name, last_name, distance])
+
+                    if i + 1 == len(face_loc):
+                        persons = persons[:i + 1]
+
+            sleep(.00001)
+
+    def run(self):
+        if self.w_type == WorkerType.CONNECT_WORKER:
+            self.connect_worker()
+
+        elif self.w_type == WorkerType.LANDMARK_WORKER:
+            self.landmark_worker()
+
+        else:
+            raise ValueError("Не указан тип воркера. Проверьте возможные типы в @class WorkerType")
 
 
 def prettify(img, label, x1, x2, y1, y2, color):
@@ -119,8 +148,13 @@ def increase_brightness(img, value=40):
 
 video_capture = cv2.VideoCapture(0)
 # video_capture = cv2.VideoCapture("/Users/bizy1/PycharmProjects/CV-SmartHome/client/video2.mp4")
-worker = Worker()
-worker.start()
+
+landmark_worker = Worker(WorkerType.LANDMARK_WORKER)
+connect_worker = Worker(WorkerType.CONNECT_WORKER, root=landmark_worker)
+
+landmark_worker.start()
+connect_worker.start()
+
 crop_image = 0
 
 while video_capture.isOpened():
@@ -130,24 +164,24 @@ while video_capture.isOpened():
     # frame = increase_brightness(frame)
 
     view_image = frame
-    process_image = frame
+    process_image = frame.copy()
 
-    worker.frame = process_image
+    landmark_worker.frame = process_image
 
     # for (i), (top, right, bottom, left) in enumerate(worker.face_locations):
     #     cropped_image = frame[top:bottom, left:right]
     #     cv2.imwrite(f"cropped_image_{crop_image}.jpg", cropped_image)
     #     crop_image += 1
 
-    for (i), (x, y, w, h) in enumerate(worker.face_locations):
+    for (i), (x, y, w, h) in enumerate(landmark_worker.face_locations):
 
-        if not worker.persons:
+        if not landmark_worker.persons:
             view_image = prettify(view_image, f"Person Number {i}", x, x+w, y, y+h, (255, 128, 0))
 
         else:
-            first_name = worker.persons[0][0]
-            last_name = worker.persons[0][1]
-            distance = worker.persons[0][2]
+            first_name = landmark_worker.persons[0][0]
+            last_name = landmark_worker.persons[0][1]
+            distance = landmark_worker.persons[0][2]
 
             view_image = prettify(view_image, f"{first_name} {last_name}: {distance}", x, x+w, y, y+h, (255, 128, 0))
 

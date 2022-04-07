@@ -8,12 +8,15 @@ from sqlmodel import Session, select
 from time import time
 from re import sub, match
 from datetime import datetime
+from model import CV_Model as CVM
 
 
 class CV_Server(Flask):
     def __init__(self, import_name):
         super().__init__(import_name)
         self.secret_key = "!TOP_SECRET_KEY"
+
+        self.face_model = CVM("siamese_network_weights.h5")
 
         self.settings = CV_Config()
         self.routes()
@@ -83,7 +86,66 @@ class CV_Server(Flask):
 
         @self.route("/users/recognize", methods=["POST"])
         def users_recognize():
-            return self.success({})
+            start_t = time()
+
+            data = self.data_processing()
+
+            if not request.files:
+                return self.failed(
+                    CVE.NO_FILES_SEND.value,
+                    CVE.NO_FILES_SEND_CODE.value,
+                    [x for x in data.keys()],
+                    CVE.NO_FILES_SEND_CODE.value
+                )
+
+            allowed_files = [x for x in request.files if match(r""".*\.jpg""", request .files[x].filename)]
+
+            if not allowed_files:
+                return self.failed(
+                    CVE.NO_FILES_SEND.value,
+                    CVE.NO_FILES_SEND_CODE.value,
+                    [x for x in data.keys()],
+                    CVE.NO_FILES_SEND_CODE.value
+                )
+
+            file = request.files[allowed_files[0]]
+            new_filename = self.settings.uploads_path + "{:%Y-%m-%d-%H-%M-%S}.jpg".format(datetime.now())
+            file.save(new_filename)
+
+            if self.face_model.check_correct_size(new_filename):
+                return self.failed(
+                    CVE.NO_FILES_SEND.value,
+                    CVE.NO_FILES_SEND_CODE.value,
+                    [x for x in data.keys()],
+                    CVE.NO_FILES_SEND_CODE.value
+                )
+
+            photo_id, distance = self.face_model.recognize_vector(new_filename)
+
+            if photo_id is None and distance is None:
+                return self.success({
+                    "identity": None
+                }, execution_time=start_t)
+
+            session = Session(engine)
+            find_photo = select(Photos).where(Photos.faiss_id == photo_id)
+            find_photo = session.exec(find_photo).one_or_none()
+
+            find_user = select(Users).where(Users.id == find_photo.user_id)
+            find_user = session.exec(find_user).one_or_none()
+
+            response = {
+                "identity": {
+                    "first_name": find_user.first_name,
+                    "last_name": find_user.last_name,
+                    "username": find_user.username,
+                    "distance": distance
+                }
+            }
+
+            session.close()
+
+            return self.success(response, execution_time=start_t)
 
         @self.route("/users/add", methods=["POST"])
         def users_add():
@@ -99,7 +161,7 @@ class CV_Server(Flask):
 
             first_name = sub(r"[^а-яА-Яa-zA-Z]", "", data["first_name"])
             last_name = sub(r"[^а-яА-Яa-zA-Z]", "", data["last_name"])
-            username = sub(r"[^a-zA-Z]", "", data["username"])
+            username = sub(r"[^a-zA-Z0-9]", "", data["username"])
 
             session = Session(engine)
             find_user = select(Users).where(Users.username == username)
@@ -150,6 +212,8 @@ class CV_Server(Flask):
 
         @self.route("/users/settings/upload", methods=["POST"])
         def users_settings_upload():
+            start_t = time()
+
             data = self.data_processing()
 
             if "username" not in data:
@@ -184,7 +248,7 @@ class CV_Server(Flask):
                     CVE.NO_FILES_SEND_CODE.value
                 )
 
-            allowed_files = [x for x in request.files if match(r""".*\.jpg""", request.files[x].filename)]
+            allowed_files = [x for x in request.files if match(r""".*\.jpg""", request .files[x].filename)]
 
             if not allowed_files:
                 return self.failed(
@@ -194,18 +258,38 @@ class CV_Server(Flask):
                     CVE.NO_FILES_SEND_CODE.value
                 )
 
+            add_photos = []
+
             for filename in allowed_files:
                 file = request.files[filename]
                 new_filename = self.settings.uploads_path + "{:%Y-%m-%d-%H-%M-%S}.jpg".format(datetime.now())
                 file.save(new_filename)
 
-                # TODO: Проверка соотношения сторон
-                #  Выкидыш - в ошибку и return self.failed()
-                #  Если все окей - обратываем моделью и кидаем в faiss и по таблицам бд
+                if self.face_model.check_correct_size(new_filename):
+                    return self.failed(
+                        CVE.NO_FILES_SEND.value,
+                        CVE.NO_FILES_SEND_CODE.value,
+                        [x for x in data.keys()],
+                        CVE.NO_FILES_SEND_CODE.value
+                    )
+
+                faiss_id = self.face_model.add_to_storage(new_filename)
+
+                photo = Photos(faiss_id=faiss_id, user_id=find_user.id,
+                               photo_path=new_filename, uploaded_at=int(time()))
+
+                add_photos.append(photo)
+
+            session.add_all(add_photos)
+            session.commit()
+            session.close()
+
+            self.face_model.dump_storage()
 
             return self.success({
-                "files": allowed_files
-            })
+                "files": allowed_files,
+                "username": data["username"]
+            }, execution_time=start_t)
 
     def run(self, *args, **kwargs) -> None:
 

@@ -14,16 +14,16 @@ class CV_Config(ConfigParser):
 
         # Server config
         self.server_host = self.get("SERVER", "SERVER_HOST")
-        self.server_port = self.get("SERVER", "SERVER_PORT")
+        self.server_port = int(self.get("SERVER", "SERVER_PORT"))
         self.uploads_path = self.get("SERVER", "UPLOADS_PATH")
         self.secret_token = self.get("SERVER", "SECRET_TOKEN")
         self.users_database = self.get("SERVER", "USERS_DATABASE")
         self.faiss_database = self.get("SERVER", "FAISS_DATABASE")
 
         # Recognition config
-        self.threshold = self.get("RECOGNITION", "THRESHOLD")
-        self.neighbours = self.get("RECOGNITION", "NEIGHBOURS")
+        self.threshold = float(self.get("RECOGNITION", "THRESHOLD"))
+        self.neighbours = int(self.get("RECOGNITION", "NEIGHBOURS"))
 
         # Client config
-        self.crop_size_x = self.get("CLIENT", "CROP_SIZE_X")
-        self.crop_size_y = self.get("CLIENT", "CROP_SIZE_Y")
+        self.crop_size_x = int(self.get("CLIENT", "CROP_SIZE_X"))
+        self.crop_size_y = int(self.get("CLIENT", "CROP_SIZE_Y"))

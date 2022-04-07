@@ -37,14 +37,14 @@ def prettify(img, label, x1, x2, y1, y2, color):
     return img
 
 
-video_capture = cv2.VideoCapture("/Users/bizy1/PycharmProjects/CV-SmartHome/client/video.mp4")
+video_capture = cv2.VideoCapture("/Users/bizy1/PycharmProjects/CV-SmartHome/client/video5.mp4")
 worker = Worker()
 worker.start()
 crop_image = 0
 
 while video_capture.isOpened():
     ret, frame = video_capture.read()
-    frame = cv2.resize(frame, (640, 1214))
+    # frame = cv2.resize(frame, (640, 1214))
 
     view_image = frame
     process_image = frame[500:800]

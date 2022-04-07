@@ -56,12 +56,18 @@ class CV_Model(FaceResnet):
         )
 
     def check_correct_size(self, filename):
-        image = self.load_image(filename)
-        if image.numpy().shape[0] != self.target_shape[0] or image.numpy().shape[1] != self.target_shape[1]:
+        try:
+            image = self.load_image(filename)
+
+        except:
             return False
 
         else:
-            return True
+            if image.numpy().shape[0] != self.target_shape[0] or image.numpy().shape[1] != self.target_shape[1]:
+                return False
+
+            else:
+                return True
 
     def return_face_embed(self, face_arr) -> np.ndarray:
         face_embed = self.embedding(resnet.preprocess_input(

@@ -5,7 +5,7 @@ import numpy as np
 import dlib
 import cv2
 
-DLIB_MODELS_PATH = "/Users/bizy1/PycharmProjects/CV-SmartHome/dlib_models/"
+DLIB_MODELS_PATH = "/Users/bizy1/PycharmProjects/CV-SmartHome/models/"
 
 
 def dlib_numpy_rect_converter(main_data, convert_to, additional_data=None):

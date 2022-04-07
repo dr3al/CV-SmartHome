@@ -10,7 +10,7 @@ class CV_Config(ConfigParser):
         self.read(self.CONFIG_PATH)
 
         # Models config
-        self.face_recognition_path = path.join(path.dirname(__file__), "tf_models")
+        self.face_recognition_path = path.join(path.dirname(__file__), "models")
 
         # Server config
         self.server_host = self.get("SERVER", "SERVER_HOST")

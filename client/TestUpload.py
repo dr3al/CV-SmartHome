@@ -10,7 +10,7 @@ from os import path
 
 settings = CV_Config()
 server = "http://89.248.193.55:7778/users/recognize"
-cascade_model_path = path.join(path.dirname(__file__), "dlib_models", "haarcascade_frontalface_alt.xml")
+cascade_model_path = path.join(path.dirname(__file__), "models", "haarcascade_frontalface_alt.xml")
 
 
 class WorkerType(Enum):

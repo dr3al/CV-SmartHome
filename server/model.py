@@ -98,7 +98,7 @@ class CV_Model(FaceResnet):
 
         defining = {}
 
-        for id_, distance in zip(cur_id, cur_dist):
+        for id_, distance in zip(s_cur_id, s_cur_dist):
             if id_ not in defining:
                 defining[id_] = {"count": 0, "distance": 10}
 

@@ -65,7 +65,7 @@ class FaceResnet:
         self.siamese_model = SiameseModel(siamese_network)
         self.siamese_model.compile(optimizer=optimizers.Adam(0.0001))
         self.siamese_model.built = True
-        self.siamese_model.load_weights(self.cv_config.face_recognition_path + "siamese_network_weights.h5")
+        self.siamese_model.load_weights(self.cv_config.face_recognition_path + "/" + self.weights_name)
 
         return self.embedding, self.siamese_model
 

@@ -105,24 +105,3 @@ class CV_Model(FaceResnet):
 
         else:
             return None, None
-
-        # print(int(cur_id), round(float(cur_dist), 5))
-        #
-        # if cur_dist < self.threshold:
-        #
-        #     return int(cur_id), round(float(cur_dist), 5)
-        #
-        # else:
-        #     return None, None
-
-        # print(dists, indexes)
-        # max_ = sorted([(i, indexes[0].tolist().count(i)) for i in set(indexes[0].tolist())], key=lambda x: x[1], reverse=True)[0][0]
-        #
-        # dist_id = dists[0][indexes[0].tolist().index(max_)]
-        # print(dist_id)
-        #
-        # if dists[0][dist_id] < self.threshold:
-        #     return max_, dist_id
-        #
-        # else:
-        #     return None, None

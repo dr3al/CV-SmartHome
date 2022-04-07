@@ -1,14 +1,14 @@
 import cv2
-# import face_recognition
-# import dlib
 from threading import Thread, main_thread
 from time import sleep
-from config import CV_Config
+from server.config import CV_Config
 from requests import post
 import numpy as np
+from os import path
 
 settings = CV_Config()
-server = "http://127.0.0.1:7777/users/recognize"
+server = "http://89.248.193.55:7778/users/recognize"
+cascade_model_path = path.join(path.dirname(__file__), "haarcascade_frontalface_alt.xml")
 
 
 class Worker(Thread):
@@ -19,7 +19,7 @@ class Worker(Thread):
         self.frame = None
         self.face_locations = []
         self.persons = []
-        self.facenet = cv2.CascadeClassifier("/Users/bizy1/PycharmProjects/CV-SmartHome/client/haarcascade_frontalface_alt.xml")
+        self.facenet = cv2.CascadeClassifier(cascade_model_path)
 
     def run(self):
         while main_thread().is_alive():

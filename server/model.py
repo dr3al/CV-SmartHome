@@ -107,11 +107,11 @@ class CV_Model(FaceResnet):
 
             defining[id_]["count"] += 1
 
-        winner = sorted([(k, v) for k, v in defining.items()], key=lambda x: x[1]["count"], reverse=True)[0]
+        winners = sorted([(k, v) for k, v in defining.items()], key=lambda x: x[1]["count"], reverse=True)
 
-        try:
-            winner_id, winner_distance = winner[0], winner[1]["distance"]
-            return int(winner_id), round(float(winner_distance), 5)
-
-        except:
+        if not winners:
             return None, None
+
+        else:
+            winner_id, winner_distance = winners[0][0], winners[0][1]["distance"]
+            return int(winner_id), round(float(winner_distance), 5)

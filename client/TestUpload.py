@@ -87,6 +87,7 @@ class Worker(Thread):
                     response = post(recognize_method, files={"photo1.jpg": file}, headers=headers)
 
                 except:
+                    sleep(1)
                     continue
 
                 # print(response.json())
@@ -95,34 +96,33 @@ class Worker(Thread):
                     response.json()
 
                 except:
+                    sleep(1)
                     continue
 
                 if response.json()["status"] == "bad":
                     continue
 
                 if response.json()["response"]["identity"] is None:
-                    pass
+                    first_name = "~"
+                    last_name = "Unknown"
+                    distance = -1
 
                 else:
                     first_name = response.json()["response"]["identity"]["first_name"]
                     last_name = response.json()["response"]["identity"]["last_name"]
                     distance = response.json()["response"]["identity"]["distance"]
 
-                    if persons:
-                        try:
-                            persons[i] = [first_name, last_name, distance]
+                try:
+                    persons[i] = [first_name, last_name, distance]
 
-                        except:
-                            persons.append([first_name, last_name, distance])
+                except:
+                    persons.append([first_name, last_name, distance])
 
-                        else:
-                            pass
+                else:
+                    pass
 
-                    else:
-                        persons.append([first_name, last_name, distance])
-
-                    if i + 1 == len(face_loc):
-                        persons = persons[:i + 1]
+                    # if i + 1 == len(face_loc):
+                    #     persons = persons[:i + 1]
 
             sleep(.00001)
 
@@ -194,17 +194,23 @@ class Capture(Thread):
             self.landmark_w.frame = process_image
 
             for (i), (x, y, w, h) in enumerate(self.landmark_w.face_locations):
-
                 if not landmark_worker.persons:
                     view_image = self.prettify(view_image, f"Person Number {i}", x, x + w, y, y + h, (255, 128, 0))
 
                 else:
-                    first_name = self.landmark_w.persons[0][0]
-                    last_name = self.landmark_w.persons[0][1]
-                    distance = self.landmark_w.persons[0][2]
+                    try:
+                        local_person = self.landmark_w.persons[i]
 
-                    view_image = self.prettify(view_image, f"{first_name} {last_name}: {distance}", x, x + w, y, y + h,
-                                          (255, 128, 0))
+                    except:
+                        continue
+
+                    else:
+                        first_name = local_person[0]
+                        last_name = local_person[1]
+                        distance = local_person[2]
+
+                        view_image = self.prettify(view_image, f"{first_name} {last_name}: {distance}", x, x + w, y, y + h,
+                                              (255, 128, 0))
 
             cv2.imshow('Video', view_image)
             if cv2.waitKey(1) == ord('q'):

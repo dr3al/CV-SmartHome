@@ -7,6 +7,8 @@ from faiss import IndexFlatL2
 import faiss as BigF
 from config import CV_Config
 from os import path
+from database import Users, Photos, engine
+from sqlmodel import Session, select
 
 
 class CV_Model(FaceResnet):
@@ -93,6 +95,14 @@ class CV_Model(FaceResnet):
         cur_id, cur_dist = indexes[0].tolist(), dists[0].tolist()
 
         s_cur_id, s_cur_dist = [], []
+
+        sess = Session(engine)
+        find_users = [select(Photos).where(Photos.faiss_id == x) for x in cur_id]
+        find_users = [sess.exec(x).one() for x in find_users]
+        cur_id = [x.user_id for x in find_users]
+        sess.close()
+
+        print(cur_id)
 
         for id_, dist in zip(cur_id, cur_dist):
             if dist >= self.settings.threshold:

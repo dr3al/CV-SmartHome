@@ -123,18 +123,15 @@ class CV_Server(Flask):
                     CVE.NO_FILES_SEND_CODE.value
                 )
 
-            photo_id, distance = self.face_model.recognize_vector(new_filename)
+            user_id, distance = self.face_model.recognize_vector(new_filename)
 
-            if photo_id is None and distance is None:
+            if user_id is None and distance is None:
                 return self.success({
                     "identity": None
                 }, execution_time=start_t)
 
             session = Session(engine)
-            find_photo = select(Photos).where(Photos.faiss_id == photo_id)
-            find_photo = session.exec(find_photo).one_or_none()
-
-            find_user = select(Users).where(Users.id == find_photo.user_id)
+            find_user = select(Users).where(Users.id == user_id)
             find_user = session.exec(find_user).one_or_none()
 
             response = {

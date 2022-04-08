@@ -7,11 +7,12 @@ from requests import get, post
 from os import path
 
 settings = CV_Config()
-ping_method = "http://127.0.0.1:7778/"
-register_method = "http://127.0.0.1:7778/users/add"
-check_method = "http://127.0.0.1:7778/users/get"
-add_photos_method = "http://127.0.0.1:7778/users/settings/upload"
-recognize_method = "http://127.0.0.1:7778/users/recognize"
+server_uri = "89.248.193.55:7778"
+ping_method = f"http://{server_uri}/"
+register_method = f"http://{server_uri}/users/add"
+check_method = f"http://{server_uri}/users/get"
+add_photos_method = f"http://{server_uri}/users/settings/upload"
+recognize_method = f"http://{server_uri}/users/recognize"
 headers = {"authorization": f"Bearer {settings.secret_token}"}
 cascade_model_path = path.join(path.dirname(__file__), "models", "haarcascade_frontalface_alt.xml")
 

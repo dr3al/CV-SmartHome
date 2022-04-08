@@ -1,15 +1,18 @@
 from enum import Enum
-
 import cv2
 from threading import Thread, main_thread
 from time import sleep
-from server.config import CV_Config
-from requests import post
-import numpy as np
+from config import CV_Config
+from requests import get, post
 from os import path
 
 settings = CV_Config()
-server = "http://89.248.193.55:7778/users/recognize"
+ping_method = "http://127.0.0.1:7778/"
+register_method = "http://127.0.0.1:7778/users/add"
+check_method = "http://127.0.0.1:7778/users/get"
+add_photos_method = "http://127.0.0.1:7778/users/settings/upload"
+recognize_method = "http://127.0.0.1:7778/users/recognize"
+headers = {"authorization": f"Bearer {settings.secret_token}"}
 cascade_model_path = path.join(path.dirname(__file__), "models", "haarcascade_frontalface_alt.xml")
 
 
@@ -31,8 +34,22 @@ class Worker(Thread):
 
         self.root = root
 
+        self.working = False
+
+    def kill(self):
+        self.working = False
+        return None
+
+    def renew(self):
+        self.working = True
+        return None
+
     def landmark_worker(self):
         while main_thread().is_alive():
+            if not self.working:
+                sleep(0.00001)
+                continue
+
             if self.frame is not None:
                 gray = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
                 self.face_locations = self.facenet.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
@@ -47,6 +64,10 @@ class Worker(Thread):
 
     def connect_worker(self):
         while main_thread().is_alive():
+            if not self.working:
+                sleep(0.00001)
+                continue
+
             face_loc = self.root.face_locations if self.root else self.face_locations
             persons = self.root.persons if self.root else self.persons
 
@@ -61,9 +82,19 @@ class Worker(Thread):
                 except:
                     continue
 
-                response = post(server, files={"photo1.jpg": file}, headers={"authorization": f"Bearer {settings.secret_token}"})
+                try:
+                    response = post(recognize_method, files={"photo1.jpg": file}, headers=headers)
 
-                print(response.json())
+                except:
+                    continue
+
+                # print(response.json())
+
+                try:
+                    response.json()
+
+                except:
+                    continue
 
                 if response.json()["status"] == "bad":
                     continue
@@ -105,96 +136,222 @@ class Worker(Thread):
             raise ValueError("Не указан тип воркера. Проверьте возможные типы в @class WorkerType")
 
 
-def prettify(img, label, x1, x2, y1, y2, color):
-    img = cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
+class Capture(Thread):
+    def __init__(self, connect_w: Worker, landmark_w: Worker):
+        super().__init__()
 
-    (w, h), _ = cv2.getTextSize(
-        label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
+        self.name = "Capture"
+        self.connect_w = connect_w
+        self.landmark_w = landmark_w
 
-    img = cv2.rectangle(img, (x1, y1 - 20), (x1 + w, y1), color, -1)
-    img = cv2.putText(img, label, (x1, y1 - 5),
-                      cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+        self.working = True
 
-    return img
+        self.video_capture = cv2.VideoCapture(0)
 
+    def prettify(self, img, label, x1, x2, y1, y2, color):
+        img = cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
 
-def white_balance_loops(img):
-    result = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
-    avg_a = np.average(result[:, :, 1])
-    avg_b = np.average(result[:, :, 2])
-    for x in range(result.shape[0]):
-        for y in range(result.shape[1]):
-            l, a, b = result[x, y, :]
-            # fix for CV correction
-            l *= 100 / 255.0
-            result[x, y, 1] = a - ((avg_a - 128) * (l / 100.0) * 1.1)
-            result[x, y, 2] = b - ((avg_b - 128) * (l / 100.0) * 1.1)
-    result = cv2.cvtColor(result, cv2.COLOR_LAB2BGR)
-    return result
+        (w, h), _ = cv2.getTextSize(
+            label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
 
+        img = cv2.rectangle(img, (x1, y1 - 20), (x1 + w, y1), color, -1)
+        img = cv2.putText(img, label, (x1, y1 - 5),
+                          cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
 
-def increase_brightness(img, value=40):
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    h, s, v = cv2.split(hsv)
+        return img
 
-    lim = 255 - value
-    v[v > lim] = 255
-    v[v <= lim] += value
+    def kill(self):
+        self.working = False
+        return None
 
-    final_hsv = cv2.merge((h, s, v))
-    img = cv2.cvtColor(final_hsv, cv2.COLOR_HSV2BGR)
-    return img
+    def restart_landmark(self):
+        self.landmark_w.kill()
+        self.landmark_w.renew()
 
+    def stop_landmark(self):
+        self.landmark_w.kill()
 
-video_capture = cv2.VideoCapture(0)
-# video_capture = cv2.VideoCapture("/Users/bizy1/PycharmProjects/CV-SmartHome/client/video2.mp4")
+    def restart_connect(self):
+        self.connect_w.kill()
+        self.connect_w.renew()
+
+    def stop_connect(self):
+        self.connect_w.kill()
+
+    def clear_landmarks(self):
+        self.landmark_w.face_locations = []
+        return True
+
+    def run(self):
+        while self.video_capture.isOpened() and self.working and main_thread().is_alive():
+            ret, frame = self.video_capture.read()
+            frame = cv2.flip(frame, 1)
+
+            view_image = frame.copy()
+            process_image = frame.copy()
+
+            self.landmark_w.frame = process_image
+
+            for (i), (x, y, w, h) in enumerate(self.landmark_w.face_locations):
+
+                if not landmark_worker.persons:
+                    view_image = self.prettify(view_image, f"Person Number {i}", x, x + w, y, y + h, (255, 128, 0))
+
+                else:
+                    first_name = self.landmark_w.persons[0][0]
+                    last_name = self.landmark_w.persons[0][1]
+                    distance = self.landmark_w.persons[0][2]
+
+                    view_image = self.prettify(view_image, f"{first_name} {last_name}: {distance}", x, x + w, y, y + h,
+                                          (255, 128, 0))
+
+            cv2.imshow('Video', view_image)
+            if cv2.waitKey(1) == ord('q'):
+                break
+
+        self.video_capture.release()
+        cv2.destroyAllWindows()
+
 
 landmark_worker = Worker(WorkerType.LANDMARK_WORKER)
 connect_worker = Worker(WorkerType.CONNECT_WORKER, root=landmark_worker)
+capture_worker = Capture(connect_worker, landmark_worker)
 
+capture_worker.start()
 landmark_worker.start()
 connect_worker.start()
 
-crop_image = 0
+while True:
+    commands = ["test_mode", "register", "add_photos", "ping"]
 
-while video_capture.isOpened():
-    ret, frame = video_capture.read()
-    # frame = cv2.resize(frame, (640, 1214))
-    frame = cv2.flip(frame, 1)
-    # frame = increase_brightness(frame)
+    cmds = input("(mode) >> ")
+    args = cmds.split(" ")
+    try:
+        cmd = args[0]
 
-    view_image = frame
-    process_image = frame.copy()
+    except:
+        print("No commands passed.")
+        continue
 
-    landmark_worker.frame = process_image
+    if cmd not in commands:
+        print("Invalid command passed.")
+        continue
 
-    # for (i), (top, right, bottom, left) in enumerate(worker.face_locations):
-    #     cropped_image = frame[top:bottom, left:right]
-    #     cv2.imwrite(f"cropped_image_{crop_image}.jpg", cropped_image)
-    #     crop_image += 1
+    if cmd == "ping":
+        print("Connecting to server...")
+        try:
+            response = get(ping_method, headers=headers, timeout=5).json()
 
-    for (i), (x, y, w, h) in enumerate(landmark_worker.face_locations):
-
-        if not landmark_worker.persons:
-            view_image = prettify(view_image, f"Person Number {i}", x, x+w, y, y+h, (255, 128, 0))
+        except:
+            print("Server is unavailable.")
+            continue
 
         else:
-            first_name = landmark_worker.persons[0][0]
-            last_name = landmark_worker.persons[0][1]
-            distance = landmark_worker.persons[0][2]
+            print(response["response"]["message"])
+            continue
 
-            view_image = prettify(view_image, f"{first_name} {last_name}: {distance}", x, x+w, y, y+h, (255, 128, 0))
+    if cmd == "register":
+        print("Connecting to server...")
+        try:
+            response = get(ping_method, headers=headers, timeout=5).json()
 
-        # cropped_image = cv2.imread(f"cropped_image_{i}.jpg")
-        # try:
-        #     view_image[0:cropped_image.shape[0], view_image.shape[1] - cropped_image.shape[1]:view_image.shape[1]] = cropped_image
-        #
-        # except:
-        #     pass
+        except:
+            print("Server is unavailable.")
+            continue
 
-    cv2.imshow('Video', view_image)
-    if cv2.waitKey(1) == ord('q'):
-        break
+        else:
+            print(response["response"]["message"])
 
-video_capture.release()
-cv2.destroyAllWindows()
+        username = input("(Enter username) >> ")
+        first_name = input("(Enter First Name) >> ")
+        last_name = input("(Enter Last Name) >> ")
+
+        data = {"first_name": first_name, "last_name": last_name, "username": username}
+        response = post(register_method, data=data, headers=headers).json()
+
+        if response["status"] == "bad":
+            print("User is already exists.")
+            continue
+
+        else:
+            print(f"Successfully added ({username}) -> {first_name} {last_name}")
+            continue
+
+    if cmd == "add_photos":
+        print("Connecting to server...")
+        try:
+            response = get(ping_method, headers=headers, timeout=5).json()
+
+        except:
+            print("Server is unavailable.")
+            continue
+
+        else:
+            print(response["response"]["message"])
+
+        username = input("(Enter username) >> ")
+        user_data = {"username": username}
+        response = get(check_method, data=user_data, headers=headers).json()
+
+        if response["status"] == "bad":
+            print(f"User with (username) -> {username} was not found.")
+            continue
+
+        else:
+            first_name = response["response"]["identity"]["first_name"]
+            last_name =  response["response"]["identity"]["last_name"]
+            print(f"Successfully joined thread with ({username}) -> {first_name} {last_name}")
+
+        # Restart landmark worker
+        capture_worker.restart_landmark()
+
+        print("Adding Photos. When you are ready, just click [Enter] in console. To exit mode, enter [exit]")
+
+        mode = input("[ADD PHOTOS] ")
+
+        while mode != "exit":
+            for (i), (x, y, w, h) in enumerate(capture_worker.landmark_w.face_locations):
+                try:
+                    with open(f"cropped_image_{i}.jpg", "rb") as f:
+                        file = f.read()
+
+                    if not file:
+                        raise AssertionError
+
+                except:
+                    continue
+
+                data = {"username": username}
+                response = post(add_photos_method, data=data, files={"photo1.jpg": file}, headers=headers)
+
+            mode = input("[ADD PHOTOS] ")
+
+        print("Exiting [ADD PHOTOS] mode...")
+        capture_worker.stop_landmark()
+        capture_worker.clear_landmarks()
+
+        continue
+
+    if cmd == "test_mode":
+        print("Connecting to server...")
+        try:
+            response = get(ping_method, headers=headers, timeout=5).json()
+
+        except:
+            print("Server is unavailable.")
+            continue
+
+        else:
+            print(response["response"]["message"])
+
+        capture_worker.restart_landmark()
+        capture_worker.restart_connect()
+
+        print("Test mode. When you are ready, just click [Enter] in console. To exit mode, just press [Enter]")
+        input(">> ")
+
+        capture_worker.stop_connect()
+        capture_worker.stop_landmark()
+        capture_worker.clear_landmarks()
+
+        continue

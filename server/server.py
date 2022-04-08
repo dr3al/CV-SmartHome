@@ -9,6 +9,8 @@ from time import time
 from re import sub, match
 from datetime import datetime
 from model import CV_Model as CVM
+# from dlib_model import Dlib_Model as CVM
+from uuid import uuid4 as uuid
 
 
 class CV_Server(Flask):
@@ -16,6 +18,7 @@ class CV_Server(Flask):
         super().__init__(import_name)
         self.secret_key = "!TOP_SECRET_KEY"
 
+        # self.face_model = CVM("shape_predictor_68_face_landmarks_GTX.dat", "dlib_face_recognition_resnet_model_v1.dat")
         self.face_model = CVM("siamese_network_weights.h5")
 
         self.settings = CV_Config()
@@ -109,7 +112,7 @@ class CV_Server(Flask):
                 )
 
             file = request.files[allowed_files[0]]
-            new_filename = self.settings.uploads_path + "{:%Y-%m-%d-%H-%M-%S}.jpg".format(datetime.now())
+            new_filename = self.settings.uploads_path + f"/{str(uuid())}.jpg"
             file.save(new_filename)
 
             if self.face_model.check_correct_size(new_filename):
@@ -210,6 +213,49 @@ class CV_Server(Flask):
         def users_settings_update():
             return self.success({})
 
+        @self.route("/users/get", methods=["GET"])
+        def users_get():
+            start_t = time()
+
+            data = self.data_processing()
+
+            if "username" not in data:
+                return self.failed(
+                    CVE.NOT_ENOUGH_ARGS.value,
+                    CVE.NOT_ENOUGH_ARGS_CODE.value,
+                    [],
+                    CVE.NOT_ENOUGH_ARGS_CODE.value
+                )
+
+            session = Session(engine)
+            find_user = select(Users).where(Users.username == data["username"])
+            find_user = session.exec(find_user).one_or_none()
+
+            print(find_user)
+
+            if not find_user:
+                session.close()
+
+                return self.failed(
+                    CVE.NOT_FOUND.value,
+                    CVE.NOT_FOUND_CODE.value,
+                    [x for x in data.values()],
+                    CVE.NOT_FOUND_CODE.value
+                )
+
+            else:
+                response = self.success({
+                    "identity": {
+                        "username": find_user.username,
+                        "first_name": find_user.first_name,
+                        "last_name": find_user.last_name
+                    }
+                }, execution_time=start_t)
+
+                session.close()
+
+                return response
+
         @self.route("/users/settings/upload", methods=["POST"])
         def users_settings_upload():
             start_t = time()
@@ -260,9 +306,9 @@ class CV_Server(Flask):
 
             add_photos = []
 
-            for filename in allowed_files:
+            for i, filename in enumerate(allowed_files):
                 file = request.files[filename]
-                new_filename = self.settings.uploads_path + "{:%Y-%m-%d-%H-%M-%S}.jpg".format(datetime.now())
+                new_filename = self.settings.uploads_path + f"/{str(uuid())}.jpg"
                 file.save(new_filename)
 
                 if self.face_model.check_correct_size(new_filename):

@@ -1,10 +1,10 @@
 from requests import get, post
 from config import CV_Config
 
-settings = CV_Config()
+secret_token = "254972abs3:24cf35bcvrnbrfcn35mjttgriei8y"
 
-data = {"first_name": "Aram", "last_name": "Aramov", "username": "Aram"}
-response = post("http://127.0.0.1:7777/users/add", data=data, headers={"authorization": f"Bearer {settings.secret_token}"})
+data = {"first_name": "Aram", "last_name": "Bidoev", "username": "Aram"}
+response = post("http://127.0.0.1:7778/users/add", data=data, headers={"authorization": f"Bearer {secret_token}"})
 
 # image1 = "cropped_image_43.jpg"
 # image2 = "cropped_image_6.jpg"

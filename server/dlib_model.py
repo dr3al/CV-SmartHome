@@ -10,11 +10,13 @@ from os import path
 
 
 class Dlib_Model:
-    def __init__(self, weights_name):
-        self.weights_name = weights_name
+    def __init__(self, shape_weights, recognition_weights):
+        self.shape_weights = shape_weights
+        self.recognition_weights = recognition_weights
         self.settings = CV_Config()
 
-        self.facenet = dlib.face_recognition_model_v1(self.settings.face_recognition_path + "/" + self.weights_name)
+        self.shapenet = dlib.shape_predictor(self.settings.face_recognition_path + "/" + self.shape_weights)
+        self.facenet = dlib.face_recognition_model_v1(self.settings.face_recognition_path + "/" + self.recognition_weights)
 
         self.threshold = self.settings.threshold
         self.neighbours = self.settings.neighbours
@@ -24,7 +26,7 @@ class Dlib_Model:
             self.upload_storage()
 
         self.target_shape = (150, 150)
-        self.landmarks = (0, 0, 150, 150)
+        self.box = dlib.rectangle(0, 0, 150, 150)
 
     @staticmethod
     def load_image(filename):
@@ -48,7 +50,7 @@ class Dlib_Model:
         image = self.load_image(filename)
         image = tf.image.resize(image, self.target_shape)
 
-        return image
+        return image.numpy()
 
     def check_correct_size(self, filename):
         try:
@@ -58,24 +60,30 @@ class Dlib_Model:
             return False
 
         else:
-            if image.numpy().shape[0] != self.target_shape[0] or image.numpy().shape[1] != self.target_shape[1]:
+            if image.shape[0] != self.target_shape[0] or image.shape[1] != self.target_shape[1]:
                 return False
 
             else:
                 return True
 
     def add_to_storage(self, filename):
-        image = self.load_image(filename)
-        embedding = self.facenet.compute_face_descriptor(image, self.landmarks)
+        image = self.preprocess_image(filename)
+        landmarks = self.shapenet(image, self.box)
+
+        embedding = self.facenet.compute_face_descriptor(image, landmarks)
         embedding = np.asarray(embedding)
+
         self.face_storage.add(embedding)
 
         _, index_ = self.face_storage.search(embedding, 1)
+
         return index_
 
     def recognize_vector(self, filename):
-        image = self.load_image(filename)
-        embedding = self.facenet.compute_face_descriptor(image, self.landmarks)
+        image = self.preprocess_image(filename)
+        landmarks = self.shapenet(image, self.box)
+
+        embedding = self.facenet.compute_face_descriptor(image, landmarks)
         embedding = np.asarray(embedding)
 
         dists, indexes = self.face_storage.search(embedding, self.neighbours)

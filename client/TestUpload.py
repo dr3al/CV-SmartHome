@@ -9,7 +9,7 @@ from serial import Serial, SerialException, SerialTimeoutException
 from serial.tools import list_ports
 
 settings = CV_Config()
-server_uri = "127.0.0.1:7778"
+server_uri = "89.248.193.55:7778"
 ping_method = f"http://{server_uri}/"
 register_method = f"http://{server_uri}/users/add"
 check_method = f"http://{server_uri}/users/get"
@@ -104,6 +104,7 @@ class Worker(Thread):
             if self.frame is not None:
                 gray = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
                 self.face_locations = self.facenet.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+                self.face_locations = sorted(self.face_locations, key=lambda x: x[2] * x[3], reverse=True)
 
                 for (i), (x, y, w, h) in enumerate(self.face_locations):
                     cropped_image = self.frame[y:y + h, x:x + w]

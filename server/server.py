@@ -11,6 +11,7 @@ from datetime import datetime
 # from model import CV_Model as CVM
 from dlib_model import Dlib_Model as CVM
 from uuid import uuid4 as uuid
+from os import path, mkdir
 
 
 class CV_Server(Flask):
@@ -22,7 +23,15 @@ class CV_Server(Flask):
         # self.face_model = CVM("siamese_network_weights.h5")
 
         self.settings = CV_Config()
+
+        self.prepare_directories()
         self.routes()
+
+    def prepare_directories(self):
+        if not path.isdir(self.settings.uploads_path):
+            mkdir(self.settings.uploads_path)
+
+        return True
 
     @staticmethod
     def success(response: dict, code=200, execution_time=None):

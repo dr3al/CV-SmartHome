@@ -5,6 +5,8 @@ from time import sleep
 from config import CV_Config
 from requests import get, post
 from os import path
+from serial import Serial, SerialException, SerialTimeoutException
+from serial.tools import list_ports
 
 settings = CV_Config()
 server_uri = "89.248.193.55:7778"
@@ -20,6 +22,54 @@ cascade_model_path = path.join(path.dirname(__file__), "models", "haarcascade_fr
 class WorkerType(Enum):
     LANDMARK_WORKER = "landmark_worker"
     CONNECT_WORKER = "connect_worker"
+
+
+class SerialWorker(Thread):
+    def __init__(self):
+        super().__init__()
+
+        self.name = "Serial-Worker"
+        self.serial = Serial(self.get_connection_port(), 115200, timeout=0.5)
+        self.statement = False
+
+    def validate(self):
+        if self.statement:
+            return None
+
+        else:
+            self.statement = True
+            return None
+
+    @staticmethod
+    def get_connection_port():
+        ports = list_ports.comports()
+
+        if not ports:
+            return None
+
+        for port in ports:
+            try:
+                _ = Serial(port.device, 9600, timeout=0)
+            except SerialException or SerialTimeoutException:
+                continue
+            else:
+                print(port.device)
+                return port.device
+
+    def run(self):
+        while True:
+            if not self.statement:
+                sleep(0.0001)
+                continue
+
+            self.serial.write("Y".encode())
+            sleep(5)
+            self.serial.write("N".encode())
+            sleep(2)
+
+            self.statement = False
+
+            sleep(0.00001)
 
 
 class Worker(Thread):
@@ -184,6 +234,7 @@ class Capture(Thread):
         return True
 
     def run(self):
+        global serial_worker
         while self.video_capture.isOpened() and self.working and main_thread().is_alive():
             ret, frame = self.video_capture.read()
             frame = cv2.flip(frame, 1)
@@ -209,6 +260,9 @@ class Capture(Thread):
                         last_name = local_person[1]
                         distance = local_person[2]
 
+                        if distance != -1:
+                            serial_worker.validate()
+
                         view_image = self.prettify(view_image, f"{first_name} {last_name}: {distance}", x, x + w, y, y + h,
                                               (255, 128, 0))
 
@@ -223,10 +277,12 @@ class Capture(Thread):
 landmark_worker = Worker(WorkerType.LANDMARK_WORKER)
 connect_worker = Worker(WorkerType.CONNECT_WORKER, root=landmark_worker)
 capture_worker = Capture(connect_worker, landmark_worker)
+serial_worker = SerialWorker()
 
 capture_worker.start()
 landmark_worker.start()
 connect_worker.start()
+serial_worker.start()
 
 while True:
     commands = ["test_mode", "register", "add_photos", "ping"]

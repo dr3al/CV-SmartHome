@@ -8,8 +8,8 @@ from sqlmodel import Session, select
 from time import time
 from re import sub, match
 from datetime import datetime
-from model import CV_Model as CVM
-# from dlib_model import Dlib_Model as CVM
+# from model import CV_Model as CVM
+from dlib_model import Dlib_Model as CVM
 from uuid import uuid4 as uuid
 
 
@@ -18,8 +18,8 @@ class CV_Server(Flask):
         super().__init__(import_name)
         self.secret_key = "!TOP_SECRET_KEY"
 
-        # self.face_model = CVM("shape_predictor_68_face_landmarks_GTX.dat", "dlib_face_recognition_resnet_model_v1.dat")
-        self.face_model = CVM("siamese_network_weights.h5")
+        self.face_model = CVM("shape_predictor_68_face_landmarks_GTX.dat", "dlib_face_recognition_resnet_model_v1.dat")
+        # self.face_model = CVM("siamese_network_weights.h5")
 
         self.settings = CV_Config()
         self.routes()

@@ -260,8 +260,8 @@ class Capture(Thread):
                         last_name = local_person[1]
                         distance = local_person[2]
 
-                        if distance != -1:
-                            serial_worker.validate()
+                        # if distance != -1:
+                        #     serial_worker.validate()
 
                         view_image = self.prettify(view_image, f"{first_name} {last_name}: {distance}", x, x + w, y, y + h,
                                               (255, 128, 0))
@@ -277,12 +277,12 @@ class Capture(Thread):
 landmark_worker = Worker(WorkerType.LANDMARK_WORKER)
 connect_worker = Worker(WorkerType.CONNECT_WORKER, root=landmark_worker)
 capture_worker = Capture(connect_worker, landmark_worker)
-serial_worker = SerialWorker()
+# serial_worker = SerialWorker()
 
 capture_worker.start()
 landmark_worker.start()
 connect_worker.start()
-serial_worker.start()
+# serial_worker.start()
 
 while True:
     commands = ["test_mode", "register", "add_photos", "ping"]

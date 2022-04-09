@@ -7,6 +7,9 @@ from faiss import IndexFlatL2
 import faiss as BigF
 from config import CV_Config
 from os import path
+from PIL import Image
+from database import Photos, Users, engine
+from sqlmodel import Session, select
 
 
 class Dlib_Model:
@@ -15,6 +18,7 @@ class Dlib_Model:
         self.recognition_weights = recognition_weights
         self.settings = CV_Config()
 
+        self.detectnet = dlib.get_frontal_face_detector()
         self.shapenet = dlib.shape_predictor(self.settings.face_recognition_path + "/" + self.shape_weights)
         self.facenet = dlib.face_recognition_model_v1(self.settings.face_recognition_path + "/" + self.recognition_weights)
 
@@ -30,12 +34,10 @@ class Dlib_Model:
 
     @staticmethod
     def load_image(filename):
-        print(filename)
-        image_string = tf.io.read_file(filename)
-        image = tf.image.decode_jpeg(image_string, channels=3)
-        image = tf.image.convert_image_dtype(image, tf.float32)
-        image = tf.image.rgb_to_grayscale(image)
-        image = tf.repeat(image, 3, axis=2)
+        image = Image.open(filename)
+        image.load()
+        image = np.asarray(image)
+
         return image
 
     def dump_storage(self):
@@ -67,29 +69,52 @@ class Dlib_Model:
                 return True
 
     def add_to_storage(self, filename):
-        image = self.preprocess_image(filename)
-        landmarks = self.shapenet(image, self.box)
+        image = self.load_image(filename)
+        face_detects = self.detectnet(image, 1)
+
+        if not face_detects:
+            return None
+
+        face = face_detects[0]
+        landmarks = self.shapenet(image, face)
 
         embedding = self.facenet.compute_face_descriptor(image, landmarks)
         embedding = np.asarray(embedding)
+        embedding = np.array([embedding]).astype(np.float32)
+
+        print(embedding, embedding.shape)
 
         self.face_storage.add(embedding)
 
         _, index_ = self.face_storage.search(embedding, 1)
-
         return index_
 
     def recognize_vector(self, filename):
-        image = self.preprocess_image(filename)
-        landmarks = self.shapenet(image, self.box)
+        image = self.load_image(filename)
+        face_detects = self.detectnet(image, 1)
+
+        if not face_detects:
+            return None, None
+
+        face = face_detects[0]
+        landmarks = self.shapenet(image, face)
 
         embedding = self.facenet.compute_face_descriptor(image, landmarks)
         embedding = np.asarray(embedding)
+        embedding = np.array([embedding]).astype(np.float32)
 
         dists, indexes = self.face_storage.search(embedding, self.neighbours)
         cur_id, cur_dist = indexes[0].tolist(), dists[0].tolist()
 
         s_cur_id, s_cur_dist = [], []
+
+        sess = Session(engine)
+        find_users = [select(Photos).where(Photos.faiss_id == x) for x in cur_id]
+        find_users = [sess.exec(x).one() for x in find_users]
+        cur_id = [x.user_id for x in find_users]
+        sess.close()
+
+        print(cur_id)
 
         for id_, dist in zip(cur_id, cur_dist):
             if dist >= self.settings.threshold:

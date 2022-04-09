@@ -9,7 +9,7 @@ from serial import Serial, SerialException, SerialTimeoutException
 from serial.tools import list_ports
 
 settings = CV_Config()
-server_uri = "89.248.193.55:7778"
+server_uri = "127.0.0.1:7778"
 ping_method = f"http://{server_uri}/"
 register_method = f"http://{server_uri}/users/add"
 check_method = f"http://{server_uri}/users/get"

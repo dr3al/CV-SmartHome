@@ -276,10 +276,10 @@ class Capture(Thread):
 
                         else:
                             if is_enabled:
-                                box_color = (0, 124, 51)
+                                box_color = (51, 124, 0)
 
                             else:
-                                box_color = (181, 6, 28)
+                                box_color = (28, 6, 181)
 
                             view_image = self.prettify(view_image, f"{first_name} {last_name}: {distance}", x, x + w, y,
                                                        y + h,

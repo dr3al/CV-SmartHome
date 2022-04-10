@@ -15,8 +15,8 @@ register_method = f"http://{server_uri}/users/add"
 check_method = f"http://{server_uri}/users/get"
 add_photos_method = f"http://{server_uri}/users/settings/upload"
 recognize_method = f"http://{server_uri}/users/recognize"
-enable_method = f"https://{server_uri}/users/access/enable"
-disable_method = f"https://{server_uri}/users/access/disable"
+enable_method = f"http://{server_uri}/users/access/enable"
+disable_method = f"http://{server_uri}/users/access/disable"
 headers = {"authorization": f"Bearer {settings.secret_token}"}
 cascade_model_path = path.join(path.dirname(__file__), "models", "haarcascade_frontalface_alt.xml")
 

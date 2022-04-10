@@ -148,7 +148,8 @@ class CV_Server(Flask):
                     "first_name": find_user.first_name,
                     "last_name": find_user.last_name,
                     "username": find_user.username,
-                    "distance": distance
+                    "distance": distance,
+                    "is_enabled": find_user.is_enabled
                 }
             }
 
@@ -209,11 +210,97 @@ class CV_Server(Flask):
 
         @self.route("/users/access/enable", methods=["POST"])
         def users_access_enable():
-            return self.success({})
+            start_t = time()
+
+            data = self.data_processing()
+
+            if "username" not in data:
+                return self.failed(CVE.NOT_ENOUGH_ARGS.value,
+                                   CVE.NOT_ENOUGH_ARGS_CODE.value,
+                                   [x for x in data.values()],
+                                   CVE.NOT_ENOUGH_ARGS_CODE.value)
+
+            session = Session(engine)
+            find_user = select(Users).where(Users.username == data["username"])
+            find_user = session.exec(find_user).one_or_none()
+
+            if not find_user:
+                session.close()
+
+                return self.failed(
+                    CVE.NOT_FOUND.value,
+                    CVE.NOT_FOUND_CODE.value,
+                    [x for x in data.values()],
+                    CVE.NOT_FOUND_CODE.value
+                )
+
+            if find_user.is_enabled:
+                session.close()
+
+                return self.failed(
+                    CVE.ALREADY_ENABLED.value,
+                    CVE.ALREADY_ENABLED_CODE.value,
+                    [x for x in data.values()],
+                    CVE.ALREADY_ENABLED_CODE.value
+                )
+
+            find_user.is_enabled = True
+            session.add(find_user)
+            session.commit()
+
+            session.close()
+
+            return self.success({
+                "username": data["username"],
+                "is_enabled": True
+            }, execution_time=start_t)
 
         @self.route("/users/access/disable", methods=["POST"])
         def users_access_disable():
-            return self.success({})
+            start_t = time()
+
+            data = self.data_processing()
+
+            if "username" not in data:
+                return self.failed(CVE.NOT_ENOUGH_ARGS.value,
+                                   CVE.NOT_ENOUGH_ARGS_CODE.value,
+                                   [x for x in data.values()],
+                                   CVE.NOT_ENOUGH_ARGS_CODE.value)
+
+            session = Session(engine)
+            find_user = select(Users).where(Users.username == data["username"])
+            find_user = session.exec(find_user).one_or_none()
+
+            if not find_user:
+                session.close()
+
+                return self.failed(
+                    CVE.NOT_FOUND.value,
+                    CVE.NOT_FOUND_CODE.value,
+                    [x for x in data.values()],
+                    CVE.NOT_FOUND_CODE.value
+                )
+
+            if not find_user.is_enabled:
+                session.close()
+
+                return self.failed(
+                    CVE.ALREADY_DISABLED.value,
+                    CVE.ALREADY_DISABLED_CODE.value,
+                    [x for x in data.values()],
+                    CVE.ALREADY_DISABLED_CODE.value
+                )
+
+            find_user.is_enabled = False
+            session.add(find_user)
+            session.commit()
+
+            session.close()
+
+            return self.success({
+                "username": data["username"],
+                "is_enabled": False
+            }, execution_time=start_t)
 
         @self.route("/users/settings/update", methods=["POST"])
         def users_settings_update():

@@ -22,3 +22,9 @@ class CV_Errors(Enum):
 
     NO_FILES_SEND = "No Files Send"
     NO_FILES_SEND_CODE = 400
+
+    ALREADY_ENABLED = "Already enabled"
+    ALREADY_ENABLED_CODE = 400
+
+    ALREADY_DISABLED = "Already disabled"
+    ALREADY_DISABLED_CODE = 400

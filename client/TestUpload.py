@@ -15,6 +15,8 @@ register_method = f"http://{server_uri}/users/add"
 check_method = f"http://{server_uri}/users/get"
 add_photos_method = f"http://{server_uri}/users/settings/upload"
 recognize_method = f"http://{server_uri}/users/recognize"
+enable_method = f"https://{server_uri}/users/access/enable"
+disable_method = f"https://{server_uri}/users/access/disable"
 headers = {"authorization": f"Bearer {settings.secret_token}"}
 cascade_model_path = path.join(path.dirname(__file__), "models", "haarcascade_frontalface_alt.xml")
 
@@ -157,17 +159,19 @@ class Worker(Thread):
                     first_name = "~"
                     last_name = "Unknown"
                     distance = -1
+                    is_enabled = False
 
                 else:
                     first_name = response.json()["response"]["identity"]["first_name"]
                     last_name = response.json()["response"]["identity"]["last_name"]
                     distance = response.json()["response"]["identity"]["distance"]
+                    is_enabled = response.json()["response"]["identity"]["is_enabled"]
 
                 try:
-                    persons[i] = [first_name, last_name, distance]
+                    persons[i] = [first_name, last_name, distance, is_enabled]
 
                 except:
-                    persons.append([first_name, last_name, distance])
+                    persons.append([first_name, last_name, distance, is_enabled])
 
                 else:
                     pass
@@ -236,16 +240,19 @@ class Capture(Thread):
 
     def run(self):
         global serial_worker
+        SF = 1
         while self.video_capture.isOpened() and self.working and main_thread().is_alive():
             ret, frame = self.video_capture.read()
             frame = cv2.flip(frame, 1)
 
-            view_image = frame.copy()
+            view_image = cv2.resize(frame.copy(), (frame.shape[1] * SF, frame.shape[0] * SF))
             process_image = frame.copy()
 
             self.landmark_w.frame = process_image
 
             for (i), (x, y, w, h) in enumerate(self.landmark_w.face_locations):
+                x, y, w, h = x * SF, y * SF, w * SF, h * SF
+
                 if not landmark_worker.persons:
                     view_image = self.prettify(view_image, f"Person Number {i}", x, x + w, y, y + h, (255, 128, 0))
 
@@ -260,6 +267,7 @@ class Capture(Thread):
                         first_name = local_person[0]
                         last_name = local_person[1]
                         distance = local_person[2]
+                        is_enabled = local_person[3]
 
                         if distance == -1:
                             view_image = self.prettify(view_image, f"{first_name} {last_name}: {distance}", x, x + w, y,
@@ -267,9 +275,15 @@ class Capture(Thread):
                                                        (255, 128, 0))
 
                         else:
+                            if is_enabled:
+                                box_color = (0, 124, 51)
+
+                            else:
+                                box_color = (148, 0, 19)
+
                             view_image = self.prettify(view_image, f"{first_name} {last_name}: {distance}", x, x + w, y,
                                                        y + h,
-                                                       (0, 124, 51))
+                                                       box_color)
 
             cv2.imshow('Video', view_image)
             if cv2.waitKey(1) == ord('q'):
@@ -288,7 +302,7 @@ landmark_worker.start()
 connect_worker.start()
 
 while True:
-    commands = ["test_mode", "register", "add_photos", "ping"]
+    commands = ["test_mode", "register", "add_photos", "ping", "shutdown", "enable", "disable"]
 
     cmds = input("(mode) >> ")
     args = cmds.split(" ")
@@ -365,7 +379,7 @@ while True:
 
         else:
             first_name = response["response"]["identity"]["first_name"]
-            last_name =  response["response"]["identity"]["last_name"]
+            last_name = response["response"]["identity"]["last_name"]
             print(f"Successfully joined thread with ({username}) -> {first_name} {last_name}")
 
         # Restart landmark worker
@@ -398,6 +412,72 @@ while True:
 
         continue
 
+    if cmd == "enable":
+        if len(args) == 1:
+            print("You should specify (username) to enable user in the CV-System")
+            continue
+
+        username = args[1]
+
+        print("Connecting to server...")
+        try:
+            response = get(ping_method, headers=headers, timeout=5).json()
+
+        except:
+            print("Server is unavailable.")
+            continue
+
+        else:
+            print(response["response"]["message"])
+
+        data = {"username": username}
+        response = post(enable_method, data=data, files={"photo1.jpg": file}, headers=headers)
+
+        if response.status_code == 404:
+            print(f"User with (username) -> {username} was not found.")
+            continue
+
+        if response.status_code == 400:
+            print(f"User with (username) -> {username} is already enabled in CV-System")
+            continue
+
+        else:
+            print(f"User with (username) -> {username} was successfully enabled in CV-System")
+            continue
+
+    if cmd == "disable":
+        if len(args) == 1:
+            print("You should specify (username) to disable user in the CV-System")
+            continue
+
+        username = args[1]
+
+        print("Connecting to server...")
+        try:
+            response = get(ping_method, headers=headers, timeout=5).json()
+
+        except:
+            print("Server is unavailable.")
+            continue
+
+        else:
+            print(response["response"]["message"])
+
+        data = {"username": username}
+        response = post(disable_method, data=data, files={"photo1.jpg": file}, headers=headers)
+
+        if response.status_code == 404:
+            print(f"User with (username) -> {username} was not found.")
+            continue
+
+        if response.status_code == 400:
+            print(f"User with (username) -> {username} is already disabled in CV-System")
+            continue
+
+        else:
+            print(f"User with (username) -> {username} was successfully disabled in CV-System")
+            continue
+
     if cmd == "test_mode":
         print("Connecting to server...")
         try:
@@ -421,3 +501,6 @@ while True:
         capture_worker.clear_landmarks()
 
         continue
+
+    if cmd == "shutdown":
+        break

@@ -431,7 +431,7 @@ while True:
             print(response["response"]["message"])
 
         data = {"username": username}
-        response = post(enable_method, data=data, files={"photo1.jpg": file}, headers=headers)
+        response = post(enable_method, data=data, headers=headers)
 
         if response.status_code == 404:
             print(f"User with (username) -> {username} was not found.")
@@ -464,7 +464,7 @@ while True:
             print(response["response"]["message"])
 
         data = {"username": username}
-        response = post(disable_method, data=data, files={"photo1.jpg": file}, headers=headers)
+        response = post(disable_method, data=data, headers=headers)
 
         if response.status_code == 404:
             print(f"User with (username) -> {username} was not found.")

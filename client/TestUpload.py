@@ -279,7 +279,7 @@ class Capture(Thread):
                                 box_color = (0, 124, 51)
 
                             else:
-                                box_color = (148, 0, 19)
+                                box_color = (181, 6, 28)
 
                             view_image = self.prettify(view_image, f"{first_name} {last_name}: {distance}", x, x + w, y,
                                                        y + h,

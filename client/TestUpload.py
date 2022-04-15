@@ -17,6 +17,7 @@ add_photos_method = f"http://{server_uri}/users/settings/upload"
 recognize_method = f"http://{server_uri}/users/recognize"
 enable_method = f"http://{server_uri}/users/access/enable"
 disable_method = f"http://{server_uri}/users/access/disable"
+get_all_method = f"http://{server_uri}/users/get/all"
 headers = {"authorization": f"Bearer {settings.secret_token}"}
 cascade_model_path = path.join(path.dirname(__file__), "models", "haarcascade_frontalface_alt.xml")
 
@@ -492,7 +493,13 @@ while True:
         else:
             print(response["response"]["message"])
 
+        response = get(get_all_method, headers=headers).json()
+        users = response["response"]["items"]
 
+        result = "\n".join([f"{i + 1}. ({x['identity']['username']}) -> {x['identity']['first_name']} {x['identity']['last_name']}" for i, x in enumerate(users)])
+
+        print(result)
+        continue
 
     if cmd == "test_mode":
         print("Connecting to server...")

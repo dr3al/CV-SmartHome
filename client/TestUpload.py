@@ -275,6 +275,8 @@ class Capture(Thread):
                                                        (255, 128, 0))
 
                         else:
+                            # Default color mode in opencv = (B, G, R)
+
                             if is_enabled:
                                 box_color = (51, 124, 0)
 
@@ -302,7 +304,7 @@ landmark_worker.start()
 connect_worker.start()
 
 while True:
-    commands = ["test_mode", "register", "add_photos", "ping", "shutdown", "enable", "disable"]
+    commands = ["test_mode", "register", "add_photos", "ping", "shutdown", "enable", "disable", "get_list"]
 
     cmds = input("(mode) >> ")
     args = cmds.split(" ")
@@ -477,6 +479,20 @@ while True:
         else:
             print(f"User with (username) -> {username} was successfully disabled in CV-System")
             continue
+
+    if cmd == "get_list":
+        print("Connecting to server...")
+        try:
+            response = get(ping_method, headers=headers, timeout=5).json()
+
+        except:
+            print("Server is unavailable.")
+            continue
+
+        else:
+            print(response["response"]["message"])
+
+
 
     if cmd == "test_mode":
         print("Connecting to server...")

@@ -36,9 +36,9 @@ class CV_Server(Flask):
     @staticmethod
     def success(response: dict, code=200, execution_time=None):
         response = {
-                "status": "ok",
-                "response": response
-             }
+            "status": "ok",
+            "response": response
+        }
 
         if execution_time is not None:
             response["execution_time"] = round(abs(time() - execution_time), 3)
@@ -110,7 +110,7 @@ class CV_Server(Flask):
                     CVE.NO_FILES_SEND_CODE.value
                 )
 
-            allowed_files = [x for x in request.files if match(r""".*\.jpg""", request .files[x].filename)]
+            allowed_files = [x for x in request.files if match(r""".*\.jpg""", request.files[x].filename)]
 
             if not allowed_files:
                 return self.failed(
@@ -306,6 +306,30 @@ class CV_Server(Flask):
         def users_settings_update():
             return self.success({})
 
+        @self.route("/users/get/all", methods=["GET"])
+        def users_get_all():
+            start_t = time()
+
+            session = Session(engine)
+            find_user = select(Users)
+            find_user = session.exec(find_user).all()
+
+            response = {
+                "count": len(find_user),
+                "items": [
+                        {
+                            "identity": {
+                                "username": x.username,
+                                "first_name": x.first_name,
+                                "last_name": x.last_name
+                            }
+                        }
+                        for x in find_user]
+                }
+
+            session.close()
+            return self.success(response, execution_time=start_t)
+
         @self.route("/users/get", methods=["GET"])
         def users_get():
             start_t = time()
@@ -387,7 +411,7 @@ class CV_Server(Flask):
                     CVE.NO_FILES_SEND_CODE.value
                 )
 
-            allowed_files = [x for x in request.files if match(r""".*\.jpg""", request .files[x].filename)]
+            allowed_files = [x for x in request.files if match(r""".*\.jpg""", request.files[x].filename)]
 
             if not allowed_files:
                 return self.failed(

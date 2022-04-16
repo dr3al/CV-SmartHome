@@ -501,7 +501,8 @@ while True:
         print(result)
         continue
 
-    if cmd == "test_mode":        print("Connecting to server...")
+    if cmd == "test_mode":
+        print("Connecting to server...")
         try:
             response = get(ping_method, headers=headers, timeout=5).json()
 

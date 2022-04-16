@@ -496,13 +496,12 @@ while True:
         response = get(get_all_method, headers=headers).json()
         users = response["response"]["items"]
 
-        result = "\n".join([f"{i + 1}. ({x['identity']['username']}) -> {x['identity']['first_name']} {x['identity']['last_name']}" for i, x in enumerate(users)])
+        result = "\n".join([f"{i + 1}. [{x['settings']['is_enabled']}] ({x['identity']['username']}) -> {x['identity']['first_name']} {x['identity']['last_name']}" for i, x in enumerate(users)])
 
         print(result)
         continue
 
-    if cmd == "test_mode":
-        print("Connecting to server...")
+    if cmd == "test_mode":        print("Connecting to server...")
         try:
             response = get(ping_method, headers=headers, timeout=5).json()
 

@@ -322,6 +322,9 @@ class CV_Server(Flask):
                                 "username": x.username,
                                 "first_name": x.first_name,
                                 "last_name": x.last_name
+                            },
+                            "settings": {
+                                "is_enabled": x.is_enabled
                             }
                         }
                         for x in find_user]
